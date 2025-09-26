@@ -76,6 +76,11 @@
             background: rgba(2, 6, 23, 0.7); /* Same as body bg with opacity */
             z-index: -50;
         }
+
+        /* Donation Modal */
+        #donation-modal {
+            transition: opacity 0.3s ease;
+        }
     </style>
 </head>
 <body class="bg-slate-900">
@@ -92,7 +97,7 @@
                     <button onclick="showPage('uploadCentrePage')" class="text-slate-300 hover:text-white transition-colors">Contribute</button>
                     <button onclick="showPage('aboutPage')" class="text-slate-300 hover:text-white transition-colors">About Us</button>
                     <button onclick="showPage('contactPage')" class="text-slate-300 hover:text-white transition-colors">Contact Us</button>
-                    <button class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Donate</button>
+                    <button onclick="openDonateModal()" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Donate</button>
                 </nav>
                 <button class="md:hidden text-slate-300" onclick="toggleMobileMenu()">
                     <svg id="menu-open-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
@@ -106,7 +111,7 @@
                  <button onclick="showPage('uploadCentrePage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Contribute</button>
                  <button onclick="showPage('aboutPage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About Us</button>
                  <button onclick="showPage('contactPage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Contact Us</button>
-                 <button class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors w-full mt-2">Donate</button>
+                 <button onclick="openDonateModal()" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors w-full mt-2">Donate</button>
              </div>
         </div>
     </header>
@@ -138,7 +143,7 @@
                     </div>
                     <div class="reveal">
                          <div class="glass-card rounded-2xl p-8 shadow-2xl">
-                             <img src="https://placehold.co/600x400/1e293b/94a3b8?text=AI+in+Action" alt="AI in Action" class="rounded-lg">
+                             <img src="https://imageio.forbes.com/specials-images/imageserve/632164db23de9900defe585a/0x0.jpg?format=jpg&height=900&width=1600&fit=bounds" alt="AI in Action" class="rounded-lg">
                          </div>
                     </div>
                 </div>
@@ -153,7 +158,7 @@
                     </div>
                     <div class="reveal md:order-1">
                         <div class="glass-card rounded-2xl p-8 shadow-2xl">
-                             <img src="https://placehold.co/600x400/1e293b/94a3b8?text=Growing+Database" alt="Database" class="rounded-lg">
+                             <img src="https://bs-uploads.toptal.io/blackfish-uploads/components/open_graph_image/8959179/og_image/optimized/0712-Bad_Practices_in_Database_Design_-_Are_You_Making_These_Mistakes_Dan_Social-754bc73011e057dc76e55a44a954e0c3.png" alt="Database" class="rounded-lg">
                          </div>
                     </div>
                 </div>
@@ -231,7 +236,7 @@
                     <div class="mt-16 max-w-4xl mx-auto">
                         <h3 class="text-2xl font-bold text-center">Founder & CEO</h3>
                         <div class="mt-8 flex flex-col sm:flex-row gap-8 items-center glass-card p-8 rounded-2xl">
-                            <img src="https://images.squarespace-cdn.com/content/v1/5b3551a831d4df367d337a3c/1679093761159-4J6Q2A0D6T6K0E1X5H3V/Oluwaferanmi+Omitoyin.jpeg" alt="Dr Oluwaferanmi Omitoyin" class="w-36 h-36 rounded-full object-cover border-4 border-slate-700 flex-shrink-0">
+                            <img src="https://images.squarespace-cdn.com/content/v1/58d451526a49630cabca750d/382ab570-20c8-400e-8349-2d07486dccb8/Oluwaferanmi+Omitoyins+photo.jpg?format=750w" alt="Dr Oluwaferanmi Omitoyin" class="w-36 h-36 rounded-full object-cover border-4 border-slate-700 flex-shrink-0">
                             <div>
                                 <h4 class="text-xl font-semibold">Dr. Oluwaferanmi Omitoyin</h4>
                                 <p class="mt-2 text-slate-400 text-sm">Dr. Oluwaferanmi Omitoyin is a medical doctor, researcher, and public health physician with over seven years of experience as a mental health advocate. His work has reached over 20,000 young people. Recognized in Forbes Magazine as a Gratitude Network Fellow in 2019, he has served in various leadership roles, including as a Board Advisory Member of the Born This Way Foundation (BTWF). He brings his passion for accessible healthcare and technology to lead AfroRadiopedia's mission.</p>
@@ -274,12 +279,29 @@
         </div>
     </main>
 
+    <!-- Donation Modal -->
+    <div id="donation-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 backdrop-blur-sm p-4" onclick="closeDonateModal()">
+        <div class="glass-card max-w-md w-full p-8 rounded-2xl text-center relative" onclick="event.stopPropagation()">
+            <button onclick="closeDonateModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-300 to-teal-300">Support Our Mission</h2>
+            <p class="mt-4 text-slate-300">Your donation helps us maintain and expand our platform, bringing vital diagnostic tools to more doctors and improving healthcare outcomes across Africa.</p>
+            <div class="mt-6 space-y-4">
+                <a href="#" class="block w-full text-center bg-sky-600 text-white font-semibold py-3 px-8 rounded-lg shadow-lg hover:bg-sky-700 transition">Donate via Paystack (Local)</a>
+                <a href="#" class="block w-full text-center bg-slate-700 text-white font-semibold py-3 px-8 rounded-lg hover:bg-slate-600 transition">Donate via GoFundMe (International)</a>
+            </div>
+        </div>
+    </div>
+
+
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- Page Navigation and UI Effects ---
         let currentPage = 'landingPage';
         const pages = document.querySelectorAll('.page');
         const header = document.getElementById('main-header');
+        const donationModal = document.getElementById('donation-modal');
 
         window.showPage = function(pageId) {
             currentPage = pageId;
@@ -325,6 +347,20 @@
         }, { threshold: 0.1 });
 
         revealElements.forEach(el => observer.observe(el));
+
+        // --- Donation Modal Logic ---
+        window.openDonateModal = function() {
+            if(donationModal) {
+                donationModal.classList.remove('hidden');
+                donationModal.classList.add('flex');
+            }
+        }
+        window.closeDonateModal = function() {
+            if(donationModal) {
+                donationModal.classList.add('hidden');
+                donationModal.classList.remove('flex');
+            }
+        }
         
         // --- Analysis Tool & Database Logic ---
         let mockDatabase = [];
