@@ -3,273 +3,435 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI X-Ray Analysis (Proof of Concept)</title>
+    <title>AfroRadiopedia - AI & Database Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        html {
+            scroll-behavior: smooth;
+        }
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(-45deg, #020617, #111827, #0f172a, #1e293b);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
+            background-color: #020617;
+            color: #e2e8f0;
         }
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        /* Simple spinner animation */
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.2);
-            border-left-color: #38bdf8; /* sky-500 */
+            border-left-color: #38bdf8;
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #xray-upload-input, #db-upload-input { display: none; }
+        
+        /* Scroll-triggered Animations */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease-out, transform 0.6s ease-out;
         }
-        /* Hide default file input */
-        #xray-upload-input {
-            display: none;
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
         }
-        /* Entrance animation */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        .glass-card {
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
         }
-        .fade-in {
-            animation: fadeIn 0.8s ease-out forwards;
+
+        /* Hero Video Background */
+        .hero-section {
+            position: relative;
+            overflow: hidden;
+        }
+        #hero-video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: -100;
+            transform: translateX(-50%) translateY(-50%);
+            background-size: cover;
+            transition: 1s opacity;
+        }
+        .hero-section::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 6, 23, 0.7); /* Same as body bg with opacity */
+            z-index: -50;
         }
     </style>
 </head>
-<body class="text-white flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-900">
 
-    <div class="w-full max-w-5xl bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 transition-all duration-500 fade-in">
-        
-        <!-- Left Side: Upload and Image Preview -->
-        <div class="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-900/50 rounded-xl p-6 border-2 border-dashed border-slate-600 hover:border-sky-500 transition-colors duration-300">
-            <!-- Initial Upload State -->
-            <div id="upload-prompt" class="text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <h3 class="mt-4 text-lg font-semibold text-slate-200">Upload Chest X-Ray</h3>
-                <p class="mt-1 text-sm text-slate-400">PNG, JPG, or GIF up to 10MB</p>
-                <label for="xray-upload-input" class="mt-6 inline-block cursor-pointer px-6 py-3 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 transition-transform hover:scale-105 duration-300">
-                    Select Image
-                </label>
-                <input type="file" id="xray-upload-input" accept="image/png, image/jpeg, image/gif">
-            </div>
-
-            <!-- Image Preview State -->
-            <div id="image-preview-container" class="hidden w-full">
-                 <img id="image-preview" src="#" alt="X-Ray Preview" class="max-w-full max-h-[70vh] md:max-h-full rounded-lg object-contain shadow-2xl shadow-black/50">
+    <!-- Header Navigation -->
+    <header id="main-header" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex-shrink-0">
+                    <h1 class="text-2xl font-extrabold tracking-tight cursor-pointer text-white" onclick="showPage('landingPage')">AfroRadiopedia</h1>
+                </div>
+                <nav class="hidden md:flex items-center gap-6">
+                    <button onclick="showPage('analysisToolPage')" class="text-slate-300 hover:text-white transition-colors">Analysis Tool</button>
+                    <button onclick="showPage('uploadCentrePage')" class="text-slate-300 hover:text-white transition-colors">Contribute</button>
+                    <button onclick="showPage('aboutPage')" class="text-slate-300 hover:text-white transition-colors">About Us</button>
+                    <button onclick="showPage('contactPage')" class="text-slate-300 hover:text-white transition-colors">Contact Us</button>
+                    <button class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Donate</button>
+                </nav>
+                <button class="md:hidden text-slate-300" onclick="toggleMobileMenu()">
+                    <svg id="menu-open-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                    <svg id="menu-close-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
             </div>
         </div>
+         <div id="mobile-menu" class="hidden md:hidden bg-slate-800/80 backdrop-blur-sm">
+             <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                 <button onclick="showPage('analysisToolPage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Analysis Tool</button>
+                 <button onclick="showPage('uploadCentrePage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Contribute</button>
+                 <button onclick="showPage('aboutPage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About Us</button>
+                 <button onclick="showPage('contactPage')" class="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Contact Us</button>
+                 <button class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors w-full mt-2">Donate</button>
+             </div>
+        </div>
+    </header>
 
-        <!-- Right Side: Analysis Results -->
-        <div class="w-full md:w-1/2 flex flex-col">
-            <h2 class="text-3xl font-bold text-slate-100 tracking-tight">AI Analysis</h2>
-            <p class="text-slate-400 mt-1" id="status-text">Awaiting image upload...</p>
+    <!-- Main Content Area -->
+    <main>
+        <!-- Landing Page / Scroll Sections -->
+        <div id="landingPage" class="page active">
+            <section class="hero-section min-h-screen flex items-center justify-center text-center">
+                <video id="hero-video" autoplay loop muted playsinline>
+                    <source src="https://cdn.pixabay.com/video/2022/11/10/137187-773231424_large.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="max-w-3xl mx-auto px-4 reveal z-10">
+                    <h2 class="text-4xl md:text-6xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-sky-300 to-teal-300">The Future of African Diagnostics</h2>
+                    <p class="mt-6 max-w-2xl mx-auto text-lg text-slate-300">The first African AI platform empowering doctors in rural regions with AI-powered assistance to make more accurate diagnoses and solve the specialist shortage.</p>
+                    <div class="mt-10">
+                        <button onclick="showPage('analysisToolPage')" class="bg-sky-600 text-white font-semibold py-3 px-8 rounded-lg shadow-lg hover:bg-sky-700 transition-transform hover:scale-105 duration-300">Launch Analysis Tool</button>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="min-h-screen flex items-center justify-center bg-slate-900">
+                <div class="max-w-5xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
+                    <div class="reveal">
+                        <h3 class="text-3xl md:text-4xl font-bold tracking-tight">Bridging the Healthcare Gap</h3>
+                        <p class="mt-4 text-slate-400">Our mission is to provide accessible, world-class diagnostic tools to every corner of the continent. By harnessing AI, we put the power of a specialist in the hands of every doctor.</p>
+                        <button onclick="showPage('aboutPage')" class="mt-6 text-sky-400 font-semibold hover:text-sky-300 transition">Learn More About Us &rarr;</button>
+                    </div>
+                    <div class="reveal">
+                         <div class="glass-card rounded-2xl p-8 shadow-2xl">
+                             <img src="https://placehold.co/600x400/1e293b/94a3b8?text=AI+in+Action" alt="AI in Action" class="rounded-lg">
+                         </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="min-h-screen flex items-center justify-center">
+                <div class="max-w-5xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
+                    <div class="reveal md:order-2">
+                        <h3 class="text-3xl md:text-4xl font-bold tracking-tight">For Doctors, By Doctors</h3>
+                        <p class="mt-4 text-slate-400">Our platform is built on a growing database of clinical cases contributed by specialists. This ensures our AI is trained on relevant data, for the most accurate and context-aware assistance.</p>
+                        <button onclick="showPage('uploadCentrePage')" class="mt-6 bg-slate-700 text-white font-semibold py-3 px-8 rounded-lg hover:bg-slate-600 transition-colors">Contribute to the Database</button>
+                    </div>
+                    <div class="reveal md:order-1">
+                        <div class="glass-card rounded-2xl p-8 shadow-2xl">
+                             <img src="https://placehold.co/600x400/1e293b/94a3b8?text=Growing+Database" alt="Database" class="rounded-lg">
+                         </div>
+                    </div>
+                </div>
+            </section>
+        </div>
 
-            <div id="results-container" class="mt-6 flex-grow flex items-center justify-center hidden">
-                <!-- Loading State -->
-                <div id="loading-spinner" class="text-center">
-                    <div class="spinner mx-auto"></div>
-                    <p class="mt-4 text-slate-300">Analyzing image... This may take a moment.</p>
+        <!-- Tool & Info Pages Container -->
+        <div class="bg-slate-900 relative">
+             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+                
+                <!-- Analysis Tool Page -->
+                <div id="analysisToolPage" class="page">
+                    <h2 class="text-3xl font-bold tracking-tight text-center mb-12">AI Analysis Tool</h2>
+                    <div class="glass-card p-8 rounded-2xl flex flex-col md:flex-row gap-8">
+                        <!-- Left Side: Upload -->
+                        <div class="w-full md:w-1/2 flex flex-col gap-6">
+                            <div id="upload-prompt" class="text-center flex flex-col items-center justify-center bg-slate-900/50 rounded-xl p-6 border-2 border-dashed border-slate-600 hover:border-sky-500 transition-colors duration-300 h-64">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                <h3 class="mt-2 text-lg font-semibold text-slate-200">Upload Chest X-Ray</h3>
+                                <label for="xray-upload-input" class="mt-4 inline-block cursor-pointer px-6 py-2 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700">Select Image</label>
+                            </div>
+                            <div id="image-preview-container" class="hidden w-full"><img id="image-preview" src="#" alt="X-Ray Preview" class="max-w-full rounded-lg object-contain shadow-2xl shadow-black/50"></div>
+                            <div>
+                                <label for="clinical-history" class="text-sm font-medium text-sky-400">Relevant Clinical History</label>
+                                <textarea id="clinical-history" rows="4" class="w-full mt-2 bg-slate-800 p-3 rounded-md border border-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none" placeholder="e.g., 45 y/o male with persistent cough..."></textarea>
+                            </div>
+                        </div>
+                        <!-- Right Side: Results -->
+                        <div class="w-full md:w-1/2 flex flex-col bg-slate-900/50 p-6 rounded-xl">
+                            <h3 class="text-2xl font-bold text-slate-100">Analysis Results</h3>
+                            <p class="text-slate-400 mt-1" id="status-text">Awaiting image upload...</p>
+                            <div id="results-container" class="mt-6 flex-grow flex items-center justify-center hidden">
+                                <div id="loading-spinner" class="text-center"><div class="spinner mx-auto"></div><p class="mt-4 text-slate-300">Analyzing image...</p></div>
+                                <div id="results-content" class="hidden w-full space-y-5"></div>
+                            </div>
+                            <div class="mt-auto pt-6">
+                                <button id="reset-button" class="w-full py-3 bg-slate-600 text-slate-200 font-semibold rounded-lg hover:bg-slate-700 disabled:opacity-50" disabled>Analyze Another Image</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Database Upload Centre Page -->
+                <div id="uploadCentrePage" class="page">
+                    <h2 class="text-3xl font-bold tracking-tight text-center">Database Upload Centre</h2>
+                    <p class="mt-2 text-slate-400 text-center max-w-2xl mx-auto">Contribute to the first African clinical imaging database. Your contributions help improve our AI and support doctors across the continent.</p>
+                    <div class="mt-12 max-w-2xl mx-auto glass-card p-8 rounded-2xl">
+                         <form id="db-upload-form" class="space-y-6">
+                            <div>
+                                <label for="db-upload-input" class="text-sm font-medium text-sky-400">1. Upload X-Ray Image</label>
+                                <div id="db-upload-box" class="mt-2 flex justify-center rounded-lg border border-dashed border-slate-600 px-6 py-10 hover:border-sky-500 cursor-pointer">
+                                    <div class="text-center"><svg class="mx-auto h-12 w-12 text-slate-500" stroke="currentColor" fill="none" viewBox="0 0 48 48"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="1" /></svg><p class="mt-4 text-sm text-slate-400" id="db-upload-text">Click to upload or drag and drop</p><input type="file" id="db-upload-input" required></div>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="db-clinical-history" class="text-sm font-medium text-sky-400">2. Add Clinical History</label>
+                                <textarea id="db-clinical-history" rows="4" class="w-full mt-2 bg-slate-800 p-3 rounded-md border border-slate-700 focus:ring-2 focus:ring-sky-500 outline-none" placeholder="Provide a brief but complete clinical history..." required></textarea>
+                            </div>
+                            <div>
+                                <label for="db-diagnosis" class="text-sm font-medium text-sky-400">3. Provide Final Diagnosis</label>
+                                <textarea id="db-diagnosis" rows="4" class="w-full mt-2 bg-slate-800 p-3 rounded-md border border-slate-700 focus:ring-2 focus:ring-sky-500 outline-none" placeholder="Enter the confirmed diagnosis..." required></textarea>
+                            </div>
+                            <div class="pt-2"><button type="submit" class="w-full py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition-colors">Submit to Database</button></div>
+                        </form>
+                         <div id="db-success-message" class="hidden mt-8 p-4 text-center bg-green-900/50 rounded-lg border border-green-700"><p class="font-semibold text-green-300">Contribution Received!</p><p class="text-sm text-green-400">Thank you for helping us grow the future of African diagnostics.</p></div>
+                    </div>
                 </div>
                 
-                <!-- Results Display State -->
-                <div id="results-content" class="hidden w-full space-y-5">
-                    <!-- Results will be populated by JS -->
+                <!-- About Us Page -->
+                <div id="aboutPage" class="page">
+                    <div class="max-w-3xl mx-auto text-center">
+                        <h2 class="text-3xl font-bold tracking-tight">About Us</h2>
+                        <p class="mt-4 text-lg text-slate-300">AfroRadiopedia was founded on a simple but powerful idea: to leverage artificial intelligence to bridge the healthcare gap in Africa. We are committed to providing world-class diagnostic assistance to medical professionals, especially those in remote and underserved regions.</p>
+                    </div>
+                    <div class="mt-16 max-w-4xl mx-auto">
+                        <h3 class="text-2xl font-bold text-center">Founder & CEO</h3>
+                        <div class="mt-8 flex flex-col sm:flex-row gap-8 items-center glass-card p-8 rounded-2xl">
+                            <img src="https://images.squarespace-cdn.com/content/v1/5b3551a831d4df367d337a3c/1679093761159-4J6Q2A0D6T6K0E1X5H3V/Oluwaferanmi+Omitoyin.jpeg" alt="Dr Oluwaferanmi Omitoyin" class="w-36 h-36 rounded-full object-cover border-4 border-slate-700 flex-shrink-0">
+                            <div>
+                                <h4 class="text-xl font-semibold">Dr. Oluwaferanmi Omitoyin</h4>
+                                <p class="mt-2 text-slate-400 text-sm">Dr. Oluwaferanmi Omitoyin is a medical doctor, researcher, and public health physician with over seven years of experience as a mental health advocate. His work has reached over 20,000 young people. Recognized in Forbes Magazine as a Gratitude Network Fellow in 2019, he has served in various leadership roles, including as a Board Advisory Member of the Born This Way Foundation (BTWF). He brings his passion for accessible healthcare and technology to lead AfroRadiopedia's mission.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Specialist Review Section -->
-            <div id="specialist-review-section" class="hidden mt-6 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                 <h3 class="font-bold text-lg text-slate-100">Specialist Review</h3>
-                 <div id="specialist-initial-prompt">
-                    <p class="text-sm text-slate-400 mt-1">Request a second opinion from an available radiologist.</p>
-                    <button id="request-review-btn" class="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 rounded-lg transition-colors">
-                        Request Specialist Review
-                    </button>
-                 </div>
-                 <div id="specialist-list-container" class="hidden mt-2 space-y-2">
-                    <!-- Specialist list will be populated by JS -->
-                 </div>
-                 <div id="specialist-confirmation" class="hidden mt-2 text-center p-4 bg-green-900/50 rounded-lg border border-green-700">
-                    <p class="font-semibold text-green-300">Request Sent!</p>
-                    <p class="text-sm text-green-400" id="confirmation-text"></p>
-                 </div>
-            </div>
-            
-            <div class="mt-auto pt-6">
-                <button id="reset-button" class="w-full py-3 bg-slate-600 text-slate-200 font-semibold rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    Analyze Another Image
-                </button>
-                <p class="text-xs text-slate-500 text-center mt-4">
-                    <strong>Disclaimer:</strong> This is a proof-of-concept. Results are simulated and not for medical use.
-                </p>
-            </div>
+
+                <!-- Contact Us Page -->
+                <div id="contactPage" class="page">
+                    <div class="max-w-3xl mx-auto text-center">
+                        <h2 class="text-3xl font-bold tracking-tight">Contact Us</h2>
+                        <p class="mt-4 text-lg text-slate-300">We'd love to hear from you. Whether you have a question about our mission, partnerships, or anything else, our team is ready to answer all your questions.</p>
+                    </div>
+                    <div class="mt-16 max-w-lg mx-auto glass-card p-8 rounded-2xl">
+                        <div class="space-y-6">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-sky-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                <div>
+                                    <h4 class="text-lg font-semibold">Email</h4>
+                                    <a href="mailto:oluwaferanmiomitoyin@gmail.com" class="text-slate-300 hover:text-sky-400 transition-colors">oluwaferanmiomitoyin@gmail.com</a>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-sky-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                </svg>
+                                <div>
+                                    <h4 class="text-lg font-semibold">Phone</h4>
+                                    <a href="tel:+2348073319543" class="text-slate-300 hover:text-sky-400 transition-colors">+234 807 331 9543</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+             </div>
         </div>
-    </div>
+    </main>
 
     <script>
-        // --- DOM Element References ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Page Navigation and UI Effects ---
+        let currentPage = 'landingPage';
+        const pages = document.querySelectorAll('.page');
+        const header = document.getElementById('main-header');
+
+        window.showPage = function(pageId) {
+            currentPage = pageId;
+            pages.forEach(page => {
+                page.classList.toggle('active', page.id === pageId);
+            });
+            window.scrollTo(0, 0); 
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (mobileMenu) mobileMenu.classList.add('hidden');
+            const menuOpenIcon = document.getElementById('menu-open-icon');
+            if (menuOpenIcon) menuOpenIcon.classList.remove('hidden');
+            const menuCloseIcon = document.getElementById('menu-close-icon');
+            if (menuCloseIcon) menuCloseIcon.classList.add('hidden');
+            updateHeaderStyle();
+        }
+        
+        window.toggleMobileMenu = function() {
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (mobileMenu) mobileMenu.classList.toggle('hidden');
+            const menuOpenIcon = document.getElementById('menu-open-icon');
+            if (menuOpenIcon) menuOpenIcon.classList.toggle('hidden');
+            const menuCloseIcon = document.getElementById('menu-close-icon');
+            if (menuCloseIcon) menuCloseIcon.classList.toggle('hidden');
+        }
+
+        function updateHeaderStyle() {
+            if (currentPage === 'landingPage' && window.scrollY < 50) {
+                 header.classList.remove('bg-slate-900/80', 'backdrop-blur-sm', 'shadow-lg');
+            } else {
+                 header.classList.add('bg-slate-900/80', 'backdrop-blur-sm', 'shadow-lg');
+            }
+        }
+
+        window.addEventListener('scroll', updateHeaderStyle);
+        
+        const revealElements = document.querySelectorAll('.reveal');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        revealElements.forEach(el => observer.observe(el));
+        
+        // --- Analysis Tool & Database Logic ---
+        let mockDatabase = [];
         const uploadInput = document.getElementById('xray-upload-input');
+        const imagePreview = document.getElementById('image-preview');
         const uploadPrompt = document.getElementById('upload-prompt');
         const imagePreviewContainer = document.getElementById('image-preview-container');
-        const imagePreview = document.getElementById('image-preview');
+        const statusText = document.getElementById('status-text');
+        const resetButton = document.getElementById('reset-button');
         const resultsContainer = document.getElementById('results-container');
         const loadingSpinner = document.getElementById('loading-spinner');
         const resultsContent = document.getElementById('results-content');
-        const statusText = document.getElementById('status-text');
-        const resetButton = document.getElementById('reset-button');
-        
-        // Specialist Review Elements
-        const specialistReviewSection = document.getElementById('specialist-review-section');
-        const requestReviewBtn = document.getElementById('request-review-btn');
-        const specialistInitialPrompt = document.getElementById('specialist-initial-prompt');
-        const specialistListContainer = document.getElementById('specialist-list-container');
-        const specialistConfirmation = document.getElementById('specialist-confirmation');
-        const confirmationText = document.getElementById('confirmation-text');
-
-        // --- Mock Data for Simulation ---
         const mockResults = [
-            { finding: "No Abnormalities Detected", confidence: 0.98, focusAreas: "Lungs appear clear and well-inflated. Cardiac silhouette is within normal limits.", report: "The AI model reviewed the chest radiograph and found no evidence of acute cardiopulmonary disease. Both lungs are clear of infiltrate, effusion, or pneumothorax. The heart size is normal. Bony structures are unremarkable.", color: 'bg-green-500' },
-            { finding: "Potential Pneumonia", confidence: 0.89, focusAreas: "Opacity and consolidation observed in the right lower lobe.", report: "Analysis suggests a focal consolidation in the right lower lobe, consistent with pneumonia. No significant pleural effusion is seen. The cardiac silhouette is normal. Clinical correlation is recommended.", color: 'bg-yellow-500' },
-            { finding: "Signs of Cardiomegaly", confidence: 0.92, focusAreas: "Enlarged cardiac silhouette, cardiothoracic ratio > 0.5.", report: "The cardiothoracic ratio appears to be elevated, suggesting cardiomegaly. The lung fields are clear. Further evaluation with an echocardiogram could be beneficial to assess cardiac function.", color: 'bg-amber-500' },
-            { finding: "Possible Pleural Effusion", confidence: 0.85, focusAreas: "Blunting of the left costophrenic angle.", report: "There is evidence of blunting of the left costophrenic angle, which may indicate a small pleural effusion. The remainder of the lung fields are clear. A lateral decubitus view or ultrasound could provide more information.", color: 'bg-orange-500' }
+            { finding: "No Abnormalities Detected", confidence: 0.98, color: 'bg-green-500' },
+            { finding: "Potential Pneumonia", confidence: 0.89, color: 'bg-yellow-500' }
         ];
 
-        const mockSpecialists = [
-            { name: "Dr. Evelyn Reed", specialty: "Cardiothoracic Radiology", online: true },
-            { name: "Dr. Ben Carter", specialty: "Musculoskeletal Radiology", online: true },
-            { name: "Dr. Olivia Chen", specialty: "Neuroradiology", online: false },
-            { name: "Dr. Marcus Thorne", specialty: "Pediatric Radiology", online: true }
-        ];
-
-        // --- Event Listener for File Upload ---
-        uploadInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
+        if (uploadInput) {
+            uploadInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     imagePreview.src = e.target.result;
-                    uploadPrompt.classList.add('hidden');
-                    imagePreviewContainer.classList.remove('hidden');
-                    statusText.textContent = "Image loaded successfully. Starting analysis...";
+                    uploadPrompt.style.display = 'none';
+                    imagePreviewContainer.style.display = 'block';
+                    statusText.textContent = "Image loaded. Starting analysis...";
                     resetButton.disabled = true;
                     simulateAIAnalysis();
                 };
                 reader.readAsDataURL(file);
-            }
-        });
-
-        // --- AI Simulation Function ---
-        function simulateAIAnalysis() {
-            resultsContainer.classList.remove('hidden');
-            loadingSpinner.classList.remove('hidden');
-            resultsContent.classList.add('hidden');
-            specialistReviewSection.classList.add('hidden'); // Hide during analysis
-
-            const delay = Math.random() * 2000 + 2000;
-            setTimeout(() => {
-                const result = mockResults[Math.floor(Math.random() * mockResults.length)];
-                
-                // Populate results dynamically
-                const confidencePercent = (result.confidence * 100).toFixed(1);
-                resultsContent.innerHTML = `
-                    <div>
-                        <h3 class="text-sm font-medium text-sky-400">Primary Finding</h3>
-                        <p class="text-lg font-semibold text-slate-100">${result.finding}</p>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-medium text-sky-400">Confidence Score</h3>
-                        <div class="w-full bg-slate-700 rounded-full h-2.5 mt-2">
-                          <div class="h-2.5 rounded-full ${result.color}" style="width: ${confidencePercent}%"></div>
-                        </div>
-                        <p class="text-right text-sm font-mono mt-1">${confidencePercent}%</p>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-medium text-sky-400">Suggested Areas of Focus</h3>
-                        <p class="text-base text-slate-200">${result.focusAreas}</p>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-medium text-sky-400">Generated Report</h3>
-                        <p class="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-md border border-slate-700">${result.report}</p>
-                    </div>
-                `;
-
-                statusText.textContent = "Analysis complete. See results below.";
-                loadingSpinner.classList.add('hidden');
-                resultsContent.classList.remove('hidden');
-                specialistReviewSection.classList.remove('hidden');
-                resetButton.disabled = false;
-            }, delay);
-        }
-        
-        // --- Specialist Review Logic ---
-        requestReviewBtn.addEventListener('click', () => {
-            specialistInitialPrompt.classList.add('hidden');
-            populateSpecialistList();
-            specialistListContainer.classList.remove('hidden');
-        });
-
-        function populateSpecialistList() {
-            specialistListContainer.innerHTML = ''; // Clear previous list
-            mockSpecialists.forEach(specialist => {
-                const specialistEl = document.createElement('button');
-                specialistEl.className = `w-full text-left p-3 rounded-lg flex items-center justify-between transition-colors ${specialist.online ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`;
-                specialistEl.disabled = !specialist.online;
-                
-                specialistEl.innerHTML = `
-                    <div>
-                        <p class="font-semibold">${specialist.name}</p>
-                        <p class="text-xs text-slate-400">${specialist.specialty}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs">${specialist.online ? 'Online' : 'Offline'}</span>
-                        <div class="w-2.5 h-2.5 rounded-full ${specialist.online ? 'bg-green-500' : 'bg-red-500'}"></div>
-                    </div>
-                `;
-                
-                if(specialist.online) {
-                    specialistEl.addEventListener('click', () => selectSpecialist(specialist));
-                }
-
-                specialistListContainer.appendChild(specialistEl);
             });
         }
 
-        function selectSpecialist(specialist) {
-            specialistListContainer.classList.add('hidden');
-            confirmationText.textContent = `Dr. ${specialist.name.split(' ').pop()} will be notified and will review this case shortly.`;
-            specialistConfirmation.classList.remove('hidden');
+        function simulateAIAnalysis() {
+            resultsContainer.classList.remove('hidden');
+            loadingSpinner.style.display = 'block';
+            resultsContent.classList.add('hidden');
+            setTimeout(() => {
+                const result = mockResults[Math.floor(Math.random() * mockResults.length)];
+                const confidencePercent = (result.confidence * 100).toFixed(1);
+                resultsContent.innerHTML = `<div><h3 class="text-sm font-medium text-sky-400">Primary Finding</h3><p class="text-lg font-semibold">${result.finding}</p></div><div><h3 class="text-sm font-medium text-sky-400">Confidence Score</h3><div class="w-full bg-slate-700 rounded-full h-2.5 mt-2"><div class="h-2.5 rounded-full ${result.color}" style="width: ${confidencePercent}%"></div></div><p class="text-right text-sm font-mono mt-1">${confidencePercent}%</p></div>`;
+                statusText.textContent = "Analysis complete.";
+                loadingSpinner.style.display = 'none';
+                resultsContent.classList.remove('hidden');
+                resetButton.disabled = false;
+            }, 2500);
         }
 
-        // --- Reset Button Logic ---
-        resetButton.addEventListener('click', () => {
-            uploadPrompt.classList.remove('hidden');
-            imagePreviewContainer.classList.add('hidden');
-            imagePreview.src = "#";
-            resultsContainer.classList.add('hidden');
-            loadingSpinner.classList.remove('hidden');
-            resultsContent.classList.add('hidden');
-            statusText.textContent = "Awaiting image upload...";
-            resetButton.disabled = true;
-            uploadInput.value = null;
+        if(resetButton) {
+            resetButton.addEventListener('click', () => {
+                uploadPrompt.style.display = 'flex';
+                imagePreviewContainer.style.display = 'none';
+                imagePreview.src = "#";
+                resultsContainer.classList.add('hidden');
+                resultsContent.classList.add('hidden');
+                statusText.textContent = "Awaiting image upload...";
+                resetButton.disabled = true;
+                uploadInput.value = null;
+                document.getElementById('clinical-history').value = '';
+            });
+        }
 
-            // Reset specialist section
-            specialistReviewSection.classList.add('hidden');
-            specialistInitialPrompt.classList.remove('hidden');
-            specialistListContainer.classList.add('hidden');
-            specialistConfirmation.classList.add('hidden');
-        });
+        const dbUploadForm = document.getElementById('db-upload-form');
+        const dbUploadInput = document.getElementById('db-upload-input');
+        const dbUploadBox = document.getElementById('db-upload-box');
+        const dbUploadText = document.getElementById('db-upload-text');
+        const dbSuccessMessage = document.getElementById('db-success-message');
+        
+        if (dbUploadBox) {
+            dbUploadBox.addEventListener('click', () => dbUploadInput.click());
+        }
+
+        if (dbUploadInput) {
+            dbUploadInput.addEventListener('change', () => {
+                if (dbUploadInput.files.length > 0) {
+                    dbUploadText.textContent = `File selected: ${dbUploadInput.files[0].name}`;
+                    dbUploadBox.classList.add('border-green-500');
+                }
+            });
+        }
+
+        if (dbUploadForm) {
+            dbUploadForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const newEntry = {
+                    imageFile: dbUploadInput.files[0].name,
+                    clinicalHistory: document.getElementById('db-clinical-history').value,
+                    diagnosis: document.getElementById('db-diagnosis').value,
+                    timestamp: new Date().toISOString()
+                };
+                mockDatabase.push(newEntry);
+                console.log("Database Updated:", mockDatabase);
+                dbUploadForm.classList.add('hidden');
+                dbSuccessMessage.classList.remove('hidden');
+                setTimeout(() => {
+                     dbUploadForm.reset();
+                     dbUploadText.textContent = 'Click to upload or drag and drop';
+                     dbUploadBox.classList.remove('border-green-500');
+                     dbSuccessMessage.classList.add('hidden');
+                     dbUploadForm.classList.remove('hidden');
+                }, 4000);
+            });
+        }
+        
+        showPage('landingPage');
+    });
     </script>
 </body>
 </html>
