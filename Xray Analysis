@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI X-Ray Analysis (Proof of Concept)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #020617, #111827, #0f172a, #1e293b);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        /* Simple spinner animation */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-left-color: #38bdf8; /* sky-500 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Hide default file input */
+        #xray-upload-input {
+            display: none;
+        }
+        /* Entrance animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-5xl bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 transition-all duration-500 fade-in">
+        
+        <!-- Left Side: Upload and Image Preview -->
+        <div class="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-900/50 rounded-xl p-6 border-2 border-dashed border-slate-600 hover:border-sky-500 transition-colors duration-300">
+            <!-- Initial Upload State -->
+            <div id="upload-prompt" class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h3 class="mt-4 text-lg font-semibold text-slate-200">Upload Chest X-Ray</h3>
+                <p class="mt-1 text-sm text-slate-400">PNG, JPG, or GIF up to 10MB</p>
+                <label for="xray-upload-input" class="mt-6 inline-block cursor-pointer px-6 py-3 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 transition-transform hover:scale-105 duration-300">
+                    Select Image
+                </label>
+                <input type="file" id="xray-upload-input" accept="image/png, image/jpeg, image/gif">
+            </div>
+
+            <!-- Image Preview State -->
+            <div id="image-preview-container" class="hidden w-full">
+                 <img id="image-preview" src="#" alt="X-Ray Preview" class="max-w-full max-h-[70vh] md:max-h-full rounded-lg object-contain shadow-2xl shadow-black/50">
+            </div>
+        </div>
+
+        <!-- Right Side: Analysis Results -->
+        <div class="w-full md:w-1/2 flex flex-col">
+            <h2 class="text-3xl font-bold text-slate-100 tracking-tight">AI Analysis</h2>
+            <p class="text-slate-400 mt-1" id="status-text">Awaiting image upload...</p>
+
+            <div id="results-container" class="mt-6 flex-grow flex items-center justify-center hidden">
+                <!-- Loading State -->
+                <div id="loading-spinner" class="text-center">
+                    <div class="spinner mx-auto"></div>
+                    <p class="mt-4 text-slate-300">Analyzing image... This may take a moment.</p>
+                </div>
+                
+                <!-- Results Display State -->
+                <div id="results-content" class="hidden w-full space-y-5">
+                    <!-- Results will be populated by JS -->
+                </div>
+            </div>
+            
+            <!-- Specialist Review Section -->
+            <div id="specialist-review-section" class="hidden mt-6 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                 <h3 class="font-bold text-lg text-slate-100">Specialist Review</h3>
+                 <div id="specialist-initial-prompt">
+                    <p class="text-sm text-slate-400 mt-1">Request a second opinion from an available radiologist.</p>
+                    <button id="request-review-btn" class="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 rounded-lg transition-colors">
+                        Request Specialist Review
+                    </button>
+                 </div>
+                 <div id="specialist-list-container" class="hidden mt-2 space-y-2">
+                    <!-- Specialist list will be populated by JS -->
+                 </div>
+                 <div id="specialist-confirmation" class="hidden mt-2 text-center p-4 bg-green-900/50 rounded-lg border border-green-700">
+                    <p class="font-semibold text-green-300">Request Sent!</p>
+                    <p class="text-sm text-green-400" id="confirmation-text"></p>
+                 </div>
+            </div>
+            
+            <div class="mt-auto pt-6">
+                <button id="reset-button" class="w-full py-3 bg-slate-600 text-slate-200 font-semibold rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Analyze Another Image
+                </button>
+                <p class="text-xs text-slate-500 text-center mt-4">
+                    <strong>Disclaimer:</strong> This is a proof-of-concept. Results are simulated and not for medical use.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Element References ---
+        const uploadInput = document.getElementById('xray-upload-input');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const resultsContainer = document.getElementById('results-container');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsContent = document.getElementById('results-content');
+        const statusText = document.getElementById('status-text');
+        const resetButton = document.getElementById('reset-button');
+        
+        // Specialist Review Elements
+        const specialistReviewSection = document.getElementById('specialist-review-section');
+        const requestReviewBtn = document.getElementById('request-review-btn');
+        const specialistInitialPrompt = document.getElementById('specialist-initial-prompt');
+        const specialistListContainer = document.getElementById('specialist-list-container');
+        const specialistConfirmation = document.getElementById('specialist-confirmation');
+        const confirmationText = document.getElementById('confirmation-text');
+
+        // --- Mock Data for Simulation ---
+        const mockResults = [
+            { finding: "No Abnormalities Detected", confidence: 0.98, focusAreas: "Lungs appear clear and well-inflated. Cardiac silhouette is within normal limits.", report: "The AI model reviewed the chest radiograph and found no evidence of acute cardiopulmonary disease. Both lungs are clear of infiltrate, effusion, or pneumothorax. The heart size is normal. Bony structures are unremarkable.", color: 'bg-green-500' },
+            { finding: "Potential Pneumonia", confidence: 0.89, focusAreas: "Opacity and consolidation observed in the right lower lobe.", report: "Analysis suggests a focal consolidation in the right lower lobe, consistent with pneumonia. No significant pleural effusion is seen. The cardiac silhouette is normal. Clinical correlation is recommended.", color: 'bg-yellow-500' },
+            { finding: "Signs of Cardiomegaly", confidence: 0.92, focusAreas: "Enlarged cardiac silhouette, cardiothoracic ratio > 0.5.", report: "The cardiothoracic ratio appears to be elevated, suggesting cardiomegaly. The lung fields are clear. Further evaluation with an echocardiogram could be beneficial to assess cardiac function.", color: 'bg-amber-500' },
+            { finding: "Possible Pleural Effusion", confidence: 0.85, focusAreas: "Blunting of the left costophrenic angle.", report: "There is evidence of blunting of the left costophrenic angle, which may indicate a small pleural effusion. The remainder of the lung fields are clear. A lateral decubitus view or ultrasound could provide more information.", color: 'bg-orange-500' }
+        ];
+
+        const mockSpecialists = [
+            { name: "Dr. Evelyn Reed", specialty: "Cardiothoracic Radiology", online: true },
+            { name: "Dr. Ben Carter", specialty: "Musculoskeletal Radiology", online: true },
+            { name: "Dr. Olivia Chen", specialty: "Neuroradiology", online: false },
+            { name: "Dr. Marcus Thorne", specialty: "Pediatric Radiology", online: true }
+        ];
+
+        // --- Event Listener for File Upload ---
+        uploadInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    uploadPrompt.classList.add('hidden');
+                    imagePreviewContainer.classList.remove('hidden');
+                    statusText.textContent = "Image loaded successfully. Starting analysis...";
+                    resetButton.disabled = true;
+                    simulateAIAnalysis();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // --- AI Simulation Function ---
+        function simulateAIAnalysis() {
+            resultsContainer.classList.remove('hidden');
+            loadingSpinner.classList.remove('hidden');
+            resultsContent.classList.add('hidden');
+            specialistReviewSection.classList.add('hidden'); // Hide during analysis
+
+            const delay = Math.random() * 2000 + 2000;
+            setTimeout(() => {
+                const result = mockResults[Math.floor(Math.random() * mockResults.length)];
+                
+                // Populate results dynamically
+                const confidencePercent = (result.confidence * 100).toFixed(1);
+                resultsContent.innerHTML = `
+                    <div>
+                        <h3 class="text-sm font-medium text-sky-400">Primary Finding</h3>
+                        <p class="text-lg font-semibold text-slate-100">${result.finding}</p>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-medium text-sky-400">Confidence Score</h3>
+                        <div class="w-full bg-slate-700 rounded-full h-2.5 mt-2">
+                          <div class="h-2.5 rounded-full ${result.color}" style="width: ${confidencePercent}%"></div>
+                        </div>
+                        <p class="text-right text-sm font-mono mt-1">${confidencePercent}%</p>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-medium text-sky-400">Suggested Areas of Focus</h3>
+                        <p class="text-base text-slate-200">${result.focusAreas}</p>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-medium text-sky-400">Generated Report</h3>
+                        <p class="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-md border border-slate-700">${result.report}</p>
+                    </div>
+                `;
+
+                statusText.textContent = "Analysis complete. See results below.";
+                loadingSpinner.classList.add('hidden');
+                resultsContent.classList.remove('hidden');
+                specialistReviewSection.classList.remove('hidden');
+                resetButton.disabled = false;
+            }, delay);
+        }
+        
+        // --- Specialist Review Logic ---
+        requestReviewBtn.addEventListener('click', () => {
+            specialistInitialPrompt.classList.add('hidden');
+            populateSpecialistList();
+            specialistListContainer.classList.remove('hidden');
+        });
+
+        function populateSpecialistList() {
+            specialistListContainer.innerHTML = ''; // Clear previous list
+            mockSpecialists.forEach(specialist => {
+                const specialistEl = document.createElement('button');
+                specialistEl.className = `w-full text-left p-3 rounded-lg flex items-center justify-between transition-colors ${specialist.online ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`;
+                specialistEl.disabled = !specialist.online;
+                
+                specialistEl.innerHTML = `
+                    <div>
+                        <p class="font-semibold">${specialist.name}</p>
+                        <p class="text-xs text-slate-400">${specialist.specialty}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs">${specialist.online ? 'Online' : 'Offline'}</span>
+                        <div class="w-2.5 h-2.5 rounded-full ${specialist.online ? 'bg-green-500' : 'bg-red-500'}"></div>
+                    </div>
+                `;
+                
+                if(specialist.online) {
+                    specialistEl.addEventListener('click', () => selectSpecialist(specialist));
+                }
+
+                specialistListContainer.appendChild(specialistEl);
+            });
+        }
+
+        function selectSpecialist(specialist) {
+            specialistListContainer.classList.add('hidden');
+            confirmationText.textContent = `Dr. ${specialist.name.split(' ').pop()} will be notified and will review this case shortly.`;
+            specialistConfirmation.classList.remove('hidden');
+        }
+
+        // --- Reset Button Logic ---
+        resetButton.addEventListener('click', () => {
+            uploadPrompt.classList.remove('hidden');
+            imagePreviewContainer.classList.add('hidden');
+            imagePreview.src = "#";
+            resultsContainer.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+            resultsContent.classList.add('hidden');
+            statusText.textContent = "Awaiting image upload...";
+            resetButton.disabled = true;
+            uploadInput.value = null;
+
+            // Reset specialist section
+            specialistReviewSection.classList.add('hidden');
+            specialistInitialPrompt.classList.remove('hidden');
+            specialistListContainer.classList.add('hidden');
+            specialistConfirmation.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
+
