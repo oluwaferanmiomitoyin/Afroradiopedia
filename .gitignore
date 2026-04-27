@@ -1,0 +1,22 @@
+# env files — keep .env.example, ignore real secrets
+**/.env.local
+**/.env.*.local
+services/ai/.env
+
+# dependencies
+**/node_modules
+
+# Next.js
+**/.next
+**/out
+**/build
+
+# Python
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+
+# Misc
+.DS_Store
+*.pem
