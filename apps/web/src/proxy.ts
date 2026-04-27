@@ -6,17 +6,10 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const role = (req.auth?.user as any)?.role;
 
-  // Protect doctor routes — login required, role enforcement added when patient portal exists
-  if (pathname.startsWith("/doctor")) {
+  // Protect authenticated routes
+  if (pathname.startsWith("/doctor") || pathname.startsWith("/dashboard") || pathname.startsWith("/admin")) {
     if (!isLoggedIn) {
-      return NextResponse.redirect(new URL("/login?callbackUrl=/doctor/dashboard", req.url));
-    }
-  }
-
-  // Protect patient routes (loose — allow anonymous access to /analyze)
-  if (pathname.startsWith("/patient/history")) {
-    if (!isLoggedIn) {
-      return NextResponse.redirect(new URL("/login", req.url));
+      return NextResponse.redirect(new URL(`/login?callbackUrl=${pathname}`, req.url));
     }
   }
 
@@ -24,5 +17,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/doctor/:path*", "/patient/:path*"],
+  matcher: ["/doctor/:path*", "/dashboard/:path*", "/admin/:path*"],
 };
