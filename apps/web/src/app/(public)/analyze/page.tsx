@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
-import { GlassCard } from "@/components/GlassCard";
+import { useSession } from "next-auth/react";
 import { MedicalDisclaimer } from "@/components/MedicalDisclaimer";
 import { SCAN_TYPES, type ScanType } from "@/lib/utils";
 import { compressImage, validateScanFile } from "@/lib/image";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { cn } from "@/lib/utils";
 
 type AnalysisResult = {
   findings: string;
@@ -15,6 +16,12 @@ type AnalysisResult = {
 };
 
 export default function AnalyzePage() {
+  const { data: session } = useSession();
+  const convexUser = useQuery(
+    api.users.getByEmail,
+    session?.user?.email ? { email: session.user.email } : "skip"
+  );
+
   const [scanType, setScanType] = useState<ScanType>("chest_xray");
   const [symptoms, setSymptoms] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -30,10 +37,7 @@ export default function AnalyzePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const validationError = validateScanFile(file);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+    if (validationError) { setError(validationError); return; }
     setError(null);
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
@@ -46,55 +50,40 @@ export default function AnalyzePage() {
     if (!imageFile) return;
     setError(null);
     setStatus("uploading");
-
     try {
-      // 1. Compress image
       const compressed = await compressImage(imageFile);
-
-      // 2. Get Cloudinary signature
       const sigRes = await fetch("/api/upload-signature", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ folder: "afroradiopedia/analyses" }),
       });
       const { timestamp, signature, cloudName, apiKey, folder } = await sigRes.json();
-
-      // 3. Upload to Cloudinary
       const formData = new FormData();
       formData.append("file", compressed);
       formData.append("timestamp", timestamp);
       formData.append("signature", signature);
       formData.append("api_key", apiKey);
       formData.append("folder", folder);
-
-      const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        { method: "POST", body: formData }
-      );
+      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body: formData });
       const uploadData = await uploadRes.json();
-      const imageUrl: string = uploadData.secure_url;
-      const imagePublicId: string = uploadData.public_id;
 
-      // 4. Save analysis to Convex
       const analysisId = await createAnalysis({
         scanType,
         symptoms,
-        imageUrl,
-        imagePublicId,
+        imageUrl: uploadData.secure_url,
+        imagePublicId: uploadData.public_id,
+        submittedBy: convexUser?._id,
       });
 
-      // 5. Call AI service
       setStatus("analysing");
       const aiRes = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl, scanType, symptoms }),
+        body: JSON.stringify({ imageUrl: uploadData.secure_url, scanType, symptoms }),
       });
-
       if (!aiRes.ok) throw new Error("Analysis failed");
       const aiData = await aiRes.json();
 
-      // 6. Save results to Convex
       await updateAnalysis({
         analysisId,
         aiFindings: aiData.findings,
@@ -121,164 +110,182 @@ export default function AnalyzePage() {
     setStatus("idle");
   }
 
+  const busy = status === "uploading" || status === "analysing";
+
   return (
-    <div className="min-h-screen py-12">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold tracking-tight">Scan Analysis Tool</h1>
-          <p className="mt-2 text-slate-400">
-            Upload a scan, describe symptoms, and get AI-powered findings backed
-            by real doctor notes.
+    <div className="min-h-screen pt-24 pb-16">
+      <div className="max-w-5xl mx-auto px-5 sm:px-8">
+
+        {/* Header */}
+        <div className="mb-8">
+          <p className="text-xs font-semibold uppercase tracking-widest text-teal-400 mb-2">Analysis Tool</p>
+          <h1 className="text-3xl font-bold text-white">Upload a Scan</h1>
+          <p className="mt-2 text-slate-400 text-sm">
+            No account needed. Upload, describe symptoms, get AI-powered findings.
           </p>
         </div>
 
         <MedicalDisclaimer className="mb-8" />
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Left: Upload */}
-          <GlassCard>
-            <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid md:grid-cols-2 gap-6">
+
+          {/* Left — Upload form */}
+          <div className="rounded-xl border border-white/8 bg-white/3 p-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
+
+              {/* Scan type */}
               <div>
-                <label className="block text-sm font-medium text-sky-400 mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Scan Type
                 </label>
                 <select
                   value={scanType}
                   onChange={(e) => setScanType(e.target.value as ScanType)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   {SCAN_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
+                    <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
               </div>
 
+              {/* Image upload */}
               <div>
-                <label className="block text-sm font-medium text-sky-400 mb-2">
-                  Upload Image
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Scan Image
                 </label>
                 {preview ? (
-                  <div className="relative">
+                  <div className="relative rounded-lg overflow-hidden bg-black">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={preview}
-                      alt="Scan preview"
-                      className="w-full rounded-lg object-contain max-h-64 bg-black"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="absolute top-2 right-2 bg-slate-800/80 text-slate-300 rounded-full p-1 hover:text-white"
-                    >
+                    <img src={preview} alt="Scan preview" className="w-full max-h-56 object-contain" />
+                    <button type="button" onClick={handleReset}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 border border-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors">
                       ✕
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer hover:border-sky-500 transition-colors">
-                    <svg className="w-10 h-10 text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <label className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-white/10 hover:border-teal-500/50 rounded-lg cursor-pointer transition-colors bg-white/2">
+                    <svg className="w-8 h-8 text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     <span className="text-sm text-slate-400">Click to upload</span>
-                    <span className="text-xs text-slate-500 mt-1">JPEG, PNG, WEBP — auto-compressed</span>
+                    <span className="text-xs text-slate-600 mt-1">JPEG · PNG · WEBP — auto-compressed</span>
                     <input type="file" accept="image/*,.dcm" className="hidden" onChange={handleFileChange} />
                   </label>
                 )}
-                {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+                {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
               </div>
 
+              {/* Symptoms */}
               <div>
-                <label className="block text-sm font-medium text-sky-400 mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Symptoms / Clinical Notes
                 </label>
                 <textarea
                   value={symptoms}
                   onChange={(e) => setSymptoms(e.target.value)}
-                  rows={4}
-                  placeholder="e.g. 42-year-old male with persistent cough for 3 weeks..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none resize-none"
+                  rows={3}
+                  placeholder="e.g. 42-year-old male, persistent cough 3 weeks, low-grade fever…"
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={!imageFile || status === "uploading" || status === "analysing"}
-                className="w-full py-3 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+                disabled={!imageFile || busy}
+                className={cn(
+                  "w-full py-2.5 font-semibold rounded-lg transition-colors text-sm",
+                  imageFile && !busy
+                    ? "bg-teal-500 hover:bg-teal-400 text-slate-950"
+                    : "bg-white/5 text-slate-500 cursor-not-allowed"
+                )}
               >
-                {status === "uploading"
-                  ? "Uploading..."
-                  : status === "analysing"
-                  ? "Analysing..."
-                  : "Analyze Scan"}
+                {status === "uploading" ? "Uploading…" : status === "analysing" ? "Analysing…" : "Analyze Scan"}
               </button>
             </form>
-          </GlassCard>
+          </div>
 
-          {/* Right: Results */}
-          <GlassCard>
-            <h2 className="text-xl font-bold mb-4">Results</h2>
+          {/* Right — Results */}
+          <div className="rounded-xl border border-white/8 bg-white/3 p-6 flex flex-col">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-5">Results</h2>
+
             {status === "idle" && (
-              <p className="text-slate-400 text-sm">Upload a scan and submit to see results.</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
+                <div className="w-12 h-12 rounded-xl border border-white/8 bg-white/3 flex items-center justify-center text-slate-600 mb-4">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <p className="text-slate-500 text-sm">Upload a scan to see AI findings here.</p>
+              </div>
             )}
-            {(status === "uploading" || status === "analysing") && (
-              <div className="flex flex-col items-center justify-center py-16 gap-4">
-                <div className="w-10 h-10 border-4 border-slate-700 border-t-sky-400 rounded-full animate-spin" />
+
+            {busy && (
+              <div className="flex-1 flex flex-col items-center justify-center py-10 gap-4">
+                <div className="w-10 h-10 border-2 border-white/10 border-t-teal-400 rounded-full animate-spin" />
                 <p className="text-slate-400 text-sm">
-                  {status === "uploading" ? "Uploading image..." : "Running AI analysis..."}
+                  {status === "uploading" ? "Uploading scan…" : "Running AI analysis…"}
                 </p>
               </div>
             )}
+
             {status === "error" && (
-              <p className="text-red-400 text-sm">{error}</p>
+              <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
+                {error}
+              </div>
             )}
+
             {status === "done" && result && (
-              <div className="space-y-6">
+              <div className="space-y-5 flex-1">
+                {/* Findings */}
                 <div>
-                  <p className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Primary Findings</p>
-                  <p className="mt-1 text-slate-100">{result.findings}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Primary Findings</p>
+                  <p className="text-sm text-slate-200 leading-relaxed">{result.findings}</p>
                 </div>
+
+                {/* Confidence */}
                 <div>
-                  <p className="text-xs font-semibold text-sky-400 uppercase tracking-wider mb-1">Confidence</p>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Confidence</p>
+                    <span className="text-xs font-mono text-teal-400">{(result.confidence * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5">
                     <div
-                      className="h-2 rounded-full bg-sky-500 transition-all"
+                      className="h-1.5 rounded-full bg-teal-500 transition-all"
                       style={{ width: `${(result.confidence * 100).toFixed(0)}%` }}
                     />
                   </div>
-                  <p className="text-right text-xs text-slate-400 mt-1">
-                    {(result.confidence * 100).toFixed(1)}%
-                  </p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Recommended Specialist</p>
-                  <p className="mt-1 text-teal-300 font-medium">{result.recommendedSpecialist}</p>
+
+                {/* Specialist */}
+                <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Recommended Specialist</p>
+                  <p className="text-sm font-semibold text-teal-400">{result.recommendedSpecialist}</p>
                 </div>
+
+                {/* Matched notes */}
                 {result.matchedNotes?.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-sky-400 uppercase tracking-wider mb-2">
-                      What Doctors Say About Similar Cases
-                    </p>
-                    <div className="space-y-3">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Similar Cases from Doctors</p>
+                    <div className="space-y-2">
                       {result.matchedNotes.map((note, i) => (
-                        <div key={i} className="bg-slate-800/60 rounded-lg p-3 text-sm">
-                          <p className="font-semibold text-slate-200">{note.condition}</p>
-                          <p className="text-slate-400 mt-1">{note.notes}</p>
-                          <p className="text-slate-500 text-xs mt-1">— {note.doctor}</p>
+                        <div key={i} className="rounded-lg border border-white/8 bg-white/3 p-3 text-xs">
+                          <p className="font-semibold text-white mb-1">{note.condition}</p>
+                          <p className="text-slate-400 leading-relaxed">{note.notes}</p>
+                          <p className="text-slate-600 mt-1">— {note.doctor}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                <button
-                  onClick={handleReset}
-                  className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg transition-colors text-sm"
-                >
+
+                <button onClick={handleReset}
+                  className="w-full py-2 border border-white/10 hover:border-white/20 text-slate-400 hover:text-white font-medium rounded-lg transition-colors text-sm">
                   Analyze Another Scan
                 </button>
               </div>
             )}
-          </GlassCard>
+          </div>
         </div>
       </div>
     </div>
