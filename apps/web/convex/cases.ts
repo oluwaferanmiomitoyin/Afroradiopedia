@@ -1,18 +1,14 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Doctor submits a new case to the knowledge base
+const TRUSTED_CONTRIBUTOR_THRESHOLD = 10;
+
 export const contribute = mutation({
   args: {
     doctorId: v.id("users"),
     scanType: v.union(
-      v.literal("chest_xray"),
-      v.literal("mammogram"),
-      v.literal("bone_xray"),
-      v.literal("mri"),
-      v.literal("ct_scan"),
-      v.literal("ultrasound"),
-      v.literal("other")
+      v.literal("chest_xray"), v.literal("mammogram"), v.literal("bone_xray"),
+      v.literal("mri"), v.literal("ct_scan"), v.literal("ultrasound"), v.literal("other")
     ),
     bodyPart: v.string(),
     condition: v.string(),
@@ -24,14 +20,17 @@ export const contribute = mutation({
     tags: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const doctor = await ctx.db.get(args.doctorId);
+    const isTrusted = doctor?.trustedContributor === true;
+
     return await ctx.db.insert("cases", {
       ...args,
-      isPublished: true,
+      isPublished: isTrusted,
+      moderationStatus: isTrusted ? "approved" : "pending_review",
     });
   },
 });
 
-// Get all cases for a doctor's dashboard
 export const getByDoctor = query({
   args: { doctorId: v.id("users") },
   handler: async (ctx, args) => {
@@ -43,30 +42,29 @@ export const getByDoctor = query({
   },
 });
 
-// Search knowledge base by scan type (for matching patient uploads)
+// Only returns approved cases — used by the AI knowledge base
 export const getByScanType = query({
   args: {
     scanType: v.union(
-      v.literal("chest_xray"),
-      v.literal("mammogram"),
-      v.literal("bone_xray"),
-      v.literal("mri"),
-      v.literal("ct_scan"),
-      v.literal("ultrasound"),
-      v.literal("other")
+      v.literal("chest_xray"), v.literal("mammogram"), v.literal("bone_xray"),
+      v.literal("mri"), v.literal("ct_scan"), v.literal("ultrasound"), v.literal("other")
     ),
   },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("cases")
       .withIndex("by_scan_type", (q) => q.eq("scanType", args.scanType))
-      .filter((q) => q.eq(q.field("isPublished"), true))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isPublished"), true),
+          q.eq(q.field("moderationStatus"), "approved")
+        )
+      )
       .order("desc")
       .take(10);
   },
 });
 
-// Get a single case by ID
 export const getById = query({
   args: { caseId: v.id("cases") },
   handler: async (ctx, args) => {
@@ -74,7 +72,55 @@ export const getById = query({
   },
 });
 
-// Delete a case (doctor can remove their own)
+// Admin: get all cases pending review
+export const getPendingReview = query({
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("cases")
+      .withIndex("by_moderation", (q) => q.eq("moderationStatus", "pending_review"))
+      .order("desc")
+      .collect();
+  },
+});
+
+// Admin: approve a case
+export const approveCase = mutation({
+  args: { caseId: v.id("cases") },
+  handler: async (ctx, { caseId }) => {
+    const c = await ctx.db.get(caseId);
+    if (!c) throw new Error("Case not found");
+
+    await ctx.db.patch(caseId, {
+      moderationStatus: "approved",
+      isPublished: true,
+      reviewedAt: Date.now(),
+    });
+
+    // Increment doctor's contribution count and check for trusted status
+    const doctor = await ctx.db.get(c.doctorId);
+    if (doctor) {
+      const newCount = (doctor.contributionCount ?? 0) + 1;
+      await ctx.db.patch(c.doctorId, {
+        contributionCount: newCount,
+        trustedContributor: newCount >= TRUSTED_CONTRIBUTOR_THRESHOLD,
+      });
+    }
+  },
+});
+
+// Admin: reject a case
+export const rejectCase = mutation({
+  args: { caseId: v.id("cases"), note: v.optional(v.string()) },
+  handler: async (ctx, { caseId, note }) => {
+    await ctx.db.patch(caseId, {
+      moderationStatus: "rejected",
+      isPublished: false,
+      moderationNote: note,
+      reviewedAt: Date.now(),
+    });
+  },
+});
+
 export const remove = mutation({
   args: { caseId: v.id("cases"), doctorId: v.id("users") },
   handler: async (ctx, args) => {
