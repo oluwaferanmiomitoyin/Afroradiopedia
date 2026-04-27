@@ -10,10 +10,12 @@ load_dotenv()
 
 app = FastAPI(title="AfroRadiopedia AI Service")
 
+_origins = [o.strip() for o in os.getenv("NEXTJS_URL", "http://localhost:3000").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("NEXTJS_URL", "http://localhost:3000")],
-    allow_methods=["POST"],
+    allow_origins=_origins,
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 

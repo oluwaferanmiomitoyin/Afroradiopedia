@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "AfroRadiopedia — AI Diagnostic Platform for Africa",
@@ -23,7 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      <body className={`${inter.className} min-h-full bg-slate-900 text-slate-100 antialiased`}>
+      <body className={`${dmSans.className} min-h-full bg-[#060d17] text-slate-100`}>
         <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
     </html>

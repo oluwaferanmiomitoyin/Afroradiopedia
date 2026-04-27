@@ -1,45 +1,48 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import { ConvexUserSync } from "@/components/ConvexUserSync";
+import { DoctorSidebarNav } from "@/components/DoctorSidebarNav";
+import { DoctorVerificationGate } from "@/components/DoctorVerificationGate";
 
-export default function DoctorLayout({ children }: { children: React.ReactNode }) {
+export default async function DoctorLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-[#060d17]">
+
       {/* Sidebar */}
-      <aside className="w-64 hidden md:flex flex-col border-r border-slate-800 bg-slate-900/50 p-6">
-        <Link href="/" className="text-xl font-extrabold tracking-tight text-white mb-8">
-          AfroRadiopedia
-        </Link>
-        <nav className="flex flex-col gap-1">
-          {[
-            { href: "/doctor/dashboard", label: "Dashboard" },
-            { href: "/doctor/contribute", label: "Contribute Case" },
-            { href: "/doctor/my-cases", label: "My Cases" },
-          ].map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="mt-auto">
-          <Link
-            href="/api/auth/signout"
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            Sign out
+      <aside className="w-60 hidden md:flex flex-col border-r border-white/6 shrink-0">
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-white/6">
+          <Link href="/" className="flex items-center gap-2 group">
+            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 group-hover:bg-teal-300 transition-colors" />
+            <span className="text-sm font-semibold tracking-tight text-white">AfroRadiopedia</span>
           </Link>
         </div>
+
+        <DoctorSidebarNav
+          name={session?.user?.name}
+          email={session?.user?.email}
+        />
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-40 h-14 border-b border-white/6 bg-[#060d17]/95 backdrop-blur-md flex items-center justify-between px-4">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+          <span className="text-sm font-semibold text-white">AfroRadiopedia</span>
+        </Link>
+        <Link href="/" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">← Home</Link>
+      </div>
+
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto">
         <ConvexUserSync />
-        {children}
+        <div className="max-w-4xl mx-auto px-5 sm:px-8 py-10 pt-20 md:pt-10">
+          <DoctorVerificationGate>
+            {children}
+          </DoctorVerificationGate>
+        </div>
       </main>
     </div>
   );

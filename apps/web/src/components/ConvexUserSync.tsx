@@ -12,10 +12,12 @@ export function ConvexUserSync() {
   useEffect(() => {
     if (!session?.user?.email || synced.current) return;
     synced.current = true;
+
     createUser({
       name: session.user.name ?? "Doctor",
       email: session.user.email,
       role: "doctor",
+      verified: false,
     });
   }, [session?.user?.email, createUser]);
 
