@@ -1,19 +1,12 @@
 "use client";
-import { useQuery } from "convex/react";
-import { useSession } from "next-auth/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import Link from "next/link";
+import { SCAN_CATEGORIES, REGION_LABELS, type ScanType, type BodyRegion } from "@/lib/utils";
 
 export default function MyCasesPage() {
-  const { data: session } = useSession();
-  const convexUser = useQuery(
-    api.users.getByEmail,
-    session?.user?.email ? { email: session.user.email } : "skip"
-  );
-  const cases = useQuery(
-    api.cases.getByDoctor,
-    convexUser?._id ? { doctorId: convexUser._id } : "skip"
-  );
+  const { isAuthenticated } = useConvexAuth();
+  const cases = useQuery(api.cases.getByDoctor, isAuthenticated ? {} : "skip");
 
   return (
     <div className="space-y-6">
@@ -74,9 +67,17 @@ export default function MyCasesPage() {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-xs font-medium text-teal-400 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded">
+                    {SCAN_CATEGORIES[c.scanType as ScanType]}
+                  </span>
                   <span className="text-xs font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">
                     {c.scanType.replace(/_/g, " ")}
                   </span>
+                  {c.region && (
+                    <span className="text-xs font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">
+                      {REGION_LABELS[c.region as BodyRegion]}
+                    </span>
+                  )}
                   <h3 className="text-sm font-semibold text-white">{c.condition}</h3>
                 </div>
                 <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{c.clinicalNotes}</p>

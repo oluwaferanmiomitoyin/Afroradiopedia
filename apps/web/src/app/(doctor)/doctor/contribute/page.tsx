@@ -1,20 +1,14 @@
 "use client";
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { useSession } from "next-auth/react";
+import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { GlassCard } from "@/components/GlassCard";
-import { SCAN_TYPES, type ScanType } from "@/lib/utils";
+import { SCAN_TYPES, type ScanType, BODY_REGIONS, type BodyRegion } from "@/lib/utils";
 import { compressImage, validateScanFile } from "@/lib/image";
 
 export default function ContributePage() {
-  const { data: session } = useSession();
-  const convexUser = useQuery(
-    api.users.getByEmail,
-    session?.user?.email ? { email: session.user.email } : "skip"
-  );
-
   const [scanType, setScanType] = useState<ScanType>("chest_xray");
+  const [region, setRegion] = useState<BodyRegion | "">("");
   const [bodyPart, setBodyPart] = useState("");
   const [condition, setCondition] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -40,7 +34,7 @@ export default function ContributePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!imageFile) return;
+    if (!imageFile || !region) return;
     setStatus("uploading");
 
     try {
@@ -68,10 +62,9 @@ export default function ContributePage() {
 
       setStatus("saving");
 
-      if (!convexUser) throw new Error("User not found");
       await contribute({
-        doctorId: convexUser._id,
         scanType,
+        region,
         bodyPart,
         condition,
         diagnosis,
@@ -150,6 +143,16 @@ export default function ContributePage() {
             </select>
           </div>
 
+          {/* Region */}
+          <div>
+            <label className="block text-sm font-medium text-sky-400 mb-2">Region *</label>
+            <select value={region} onChange={(e) => setRegion(e.target.value as BodyRegion)} required
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+              <option value="">Select…</option>
+              {BODY_REGIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+
           {/* Body Part */}
           <div>
             <label className="block text-sm font-medium text-sky-400 mb-2">Body Part *</label>
@@ -203,7 +206,7 @@ export default function ContributePage() {
           )}
 
           <button type="submit"
-            disabled={!imageFile || status === "uploading" || status === "saving"}
+            disabled={!imageFile || !region || status === "uploading" || status === "saving"}
             className="w-full py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors">
             {status === "uploading" ? "Uploading..." : status === "saving" ? "Saving..." : "Submit Case"}
           </button>

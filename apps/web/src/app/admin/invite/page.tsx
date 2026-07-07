@@ -1,6 +1,6 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
 
@@ -55,7 +55,8 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function AdminPanel() {
-  const all = useQuery(api.doctorApplications.list);
+  const { isAuthenticated } = useConvexAuth();
+  const all = useQuery(api.doctorApplications.list, isAuthenticated ? {} : "skip");
   const approve = useMutation(api.doctorApplications.approve);
   const reject = useMutation(api.doctorApplications.reject);
   const [tab, setTab] = useState<Tab>("pending");

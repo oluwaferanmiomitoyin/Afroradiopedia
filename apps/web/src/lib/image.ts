@@ -33,3 +33,21 @@ export function validateScanFile(file: File): string | null {
 
   return null;
 }
+
+/**
+ * Validates that a file is an accepted document type for a medical license upload.
+ */
+export function validateLicenseFile(file: File): string | null {
+  const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  const MAX_SIZE_MB = 10;
+
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return "Please upload a valid file (JPEG, PNG, WEBP, or PDF).";
+  }
+
+  if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+    return `File size must be under ${MAX_SIZE_MB}MB.`;
+  }
+
+  return null;
+}
