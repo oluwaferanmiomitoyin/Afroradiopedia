@@ -1,16 +1,38 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, HttpUrl
-from dotenv import load_dotenv
-import httpx
+import io
+import logging
 import os
-import json
+
+from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="AfroRadiopedia AI Service")
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
+from PIL import Image, UnidentifiedImageError
+from pydantic import BaseModel
+
+from constants import SPECIALIST_MAP
+from gemini_engine import check_is_medical_image, run_gemini
+from image_utils import fetch_image_bytes
+from model import DiagnosticModel
+
+logger = logging.getLogger(__name__)
 
 _origins = [o.strip() for o in os.getenv("NEXTJS_URL", "http://localhost:3000").split(",") if o.strip()]
+
+_API_KEY = os.getenv("API_KEY", "")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _require_api_key(key: str | None = Depends(_api_key_header)) -> None:
+    if not _API_KEY:
+        return  # API_KEY not configured — open in dev mode
+    if key != _API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+app = FastAPI(title="AfroRadiopedia AI Service")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,120 +41,78 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+diagnostic_model = DiagnosticModel()
 
-SPECIALIST_MAP = {
-    "chest_xray": "Pulmonologist / Radiologist",
-    "mammogram": "Oncologist / Breast Surgeon",
-    "bone_xray": "Orthopedic Surgeon",
-    "mri": "Neurologist / Radiologist",
-    "ct_scan": "Radiologist",
-    "ultrasound": "Radiologist / Obstetrician",
-    "other": "General Specialist",
-}
+
+class SimilarCase(BaseModel):
+    condition: str
+    diagnosis: str
+    clinicalNotes: str
 
 
 class AnalyzeRequest(BaseModel):
     image_url: str
     scan_type: str
+    region: str | None = None
     symptoms: str = ""
+    engine: str = "gemini"  # "gemini" | "medgemma"
+    similar_cases: list[SimilarCase] = []
 
 
 class AnalyzeResponse(BaseModel):
     findings: str
     confidence: float
     recommendedSpecialist: str
+    engineUsed: str
     matchedCaseIds: list[str] = []
     matchedNotes: list[dict] = []
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model_mode": diagnostic_model.mode, "model_version": diagnostic_model.version}
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+@app.post("/analyze", response_model=AnalyzeResponse, dependencies=[Depends(_require_api_key)])
 async def analyze(req: AnalyzeRequest):
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=503, detail="AI service not configured")
+    similar_cases = [c.model_dump() for c in req.similar_cases]
+    matched_notes = [
+        {"condition": c["condition"], "notes": c["clinicalNotes"], "doctor": "AfroRadiopedia contributor"}
+        for c in similar_cases
+    ]
 
-    scan_label = req.scan_type.replace("_", " ").title()
-    specialist = SPECIALIST_MAP.get(req.scan_type, "General Specialist")
+    engine_used = "gemini"
+    result: dict | None = None
 
-    prompt = f"""You are an expert radiologist assisting a doctor in a remote African clinic.
+    if req.engine == "medgemma" and diagnostic_model.mode == "real":
+        try:
+            if not await check_is_medical_image(req.image_url, req.scan_type):
+                result = {
+                    "findings": (
+                        "This doesn't appear to be a valid medical scan. Please upload a clear "
+                        "X-ray, CT, MRI, or other diagnostic image for analysis."
+                    ),
+                    "confidence": 0.0,
+                    "recommendedSpecialist": SPECIALIST_MAP.get(req.scan_type, "General Specialist"),
+                }
+            else:
+                image_bytes = await fetch_image_bytes(req.image_url)
+                image = Image.open(io.BytesIO(image_bytes))
+                result = diagnostic_model.predict(image, req.scan_type, req.region, req.symptoms, similar_cases)
+            engine_used = "medgemma"
+        except UnidentifiedImageError as exc:
+            raise HTTPException(status_code=400, detail="Invalid image format") from exc
+        except Exception:
+            logger.exception("MedGemma inference failed — falling back to Gemini")
+            result = None
 
-A {scan_label} image has been uploaded.
-Patient symptoms / clinical history: {req.symptoms or "Not provided"}
-
-Analyze the image and provide:
-1. Key findings visible in the scan (be specific and clinical)
-2. Most likely diagnosis or differential diagnoses
-3. Confidence level as a decimal between 0 and 1
-4. Any red flags or urgent findings
-
-Respond ONLY with valid JSON in this exact format:
-{{
-  "findings": "...",
-  "confidence": 0.85,
-  "urgentFlags": "..."
-}}"""
-
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "image/jpeg",
-                            "data": await _fetch_image_base64(req.image_url),
-                        }
-                    },
-                ]
-            }
-        ],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024},
-    }
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-            json=payload,
-        )
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=502, detail="Gemini API error")
-
-    text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-    # Parse JSON from Gemini response
-    try:
-        # Strip markdown code blocks if present
-        clean = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(clean)
-    except Exception:
-        # Fallback if Gemini doesn't return clean JSON
-        result = {
-            "findings": text,
-            "confidence": 0.7,
-            "urgentFlags": "",
-        }
+    if result is None:
+        result = await run_gemini(req.image_url, req.scan_type, req.symptoms, similar_cases)
+        engine_used = "gemini"
 
     return AnalyzeResponse(
-        findings=result.get("findings", "Unable to determine findings."),
-        confidence=float(result.get("confidence", 0.7)),
-        recommendedSpecialist=specialist,
+        **result,
+        engineUsed=engine_used,
         matchedCaseIds=[],
-        matchedNotes=[],
+        matchedNotes=matched_notes,
     )
-
-
-async def _fetch_image_base64(url: str) -> str:
-    """Download image from Cloudinary URL and return as base64 string."""
-    import base64
-    async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.get(url)
-    if response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Could not fetch image")
-    return base64.b64encode(response.content).decode("utf-8")
