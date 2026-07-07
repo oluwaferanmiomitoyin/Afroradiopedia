@@ -2,18 +2,27 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { MedicalDisclaimer } from "@/components/MedicalDisclaimer";
+import { DiagnosticLoadingState } from "@/components/DiagnosticLoadingState";
 import { SCAN_TYPES, type ScanType } from "@/lib/utils";
 import { compressImage, validateScanFile } from "@/lib/image";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 
+type Engine = "gemini" | "medgemma";
+
 type AnalysisResult = {
   findings: string;
   confidence: number;
   recommendedSpecialist: string;
+  engineUsed: Engine;
   matchedNotes: { condition: string; notes: string; doctor: string }[];
 };
+
+const ENGINES: { value: Engine; label: string; eta: string; description: string }[] = [
+  { value: "gemini", label: "Quick check", eta: "~10 seconds", description: "Fast, general-purpose AI." },
+  { value: "medgemma", label: "Deep scan", eta: "30s–90 seconds", description: "Our own model — grounded in cases doctors have contributed, gets better over time." },
+];
 
 export default function AnalyzePage() {
   const { data: session } = useSession();
@@ -23,6 +32,7 @@ export default function AnalyzePage() {
   );
 
   const [scanType, setScanType] = useState<ScanType>("chest_xray");
+  const [engine, setEngine] = useState<Engine>("gemini");
   const [symptoms, setSymptoms] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -79,7 +89,7 @@ export default function AnalyzePage() {
       const aiRes = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: uploadData.secure_url, scanType, symptoms }),
+        body: JSON.stringify({ imageUrl: uploadData.secure_url, scanType, symptoms, engine }),
       });
       if (!aiRes.ok) throw new Error("Analysis failed");
       const aiData = await aiRes.json();
@@ -147,6 +157,34 @@ export default function AnalyzePage() {
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Engine choice */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Analysis Speed
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ENGINES.map((e) => (
+                    <button
+                      key={e.value}
+                      type="button"
+                      onClick={() => setEngine(e.value)}
+                      className={cn(
+                        "text-left rounded-lg border px-3 py-2.5 transition-colors",
+                        engine === e.value
+                          ? "border-teal-500 bg-teal-500/10"
+                          : "border-white/10 bg-slate-900 hover:border-white/20"
+                      )}
+                    >
+                      <p className={cn("text-sm font-semibold", engine === e.value ? "text-teal-400" : "text-slate-200")}>
+                        {e.label}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">{e.eta}</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-snug">{e.description}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Image upload */}
@@ -220,7 +258,9 @@ export default function AnalyzePage() {
               </div>
             )}
 
-            {busy && (
+            {busy && status === "analysing" && engine === "medgemma" ? (
+              <DiagnosticLoadingState />
+            ) : busy && (
               <div className="flex-1 flex flex-col items-center justify-center py-10 gap-4">
                 <div className="w-10 h-10 border-2 border-white/10 border-t-teal-400 rounded-full animate-spin" />
                 <p className="text-slate-400 text-sm">
@@ -239,7 +279,13 @@ export default function AnalyzePage() {
               <div className="space-y-5 flex-1">
                 {/* Findings */}
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Primary Findings</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Primary Findings</p>
+                    <span className="text-xs text-slate-600">
+                      via {result.engineUsed === "medgemma" ? "Deep scan" : "Quick check"}
+                      {result.engineUsed !== engine && " (fallback)"}
+                    </span>
+                  </div>
                   <p className="text-sm text-slate-200 leading-relaxed">{result.findings}</p>
                 </div>
 

@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../../convex/_generated/api";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? "http://localhost:8000";
+
+// "Quick check" (Gemini) is fast and predictable; "Deep scan" (self-hosted
+// MedGemma, CPU-only for now) can legitimately take well over a minute.
+const TIMEOUTS_MS = { gemini: 30_000, medgemma: 150_000 } as const;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { imageUrl, scanType, symptoms } = body;
+    const { imageUrl, scanType, region, symptoms, engine } = body;
 
     if (!imageUrl || !scanType) {
       return NextResponse.json(
@@ -14,12 +20,26 @@ export async function POST(request: Request) {
       );
     }
 
+    const selectedEngine: "gemini" | "medgemma" = engine === "medgemma" ? "medgemma" : "gemini";
+
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const similarCases = await convex.query(api.cases.getSimilarCases, {
+      scanType,
+      region: region || undefined,
+    });
+
     // Call the FastAPI AI microservice
     const aiResponse = await fetch(`${AI_SERVICE_URL}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_url: imageUrl, scan_type: scanType, symptoms }),
-      signal: AbortSignal.timeout(30000), // 30s timeout
+      body: JSON.stringify({
+        image_url: imageUrl,
+        scan_type: scanType,
+        symptoms,
+        engine: selectedEngine,
+        similar_cases: similarCases,
+      }),
+      signal: AbortSignal.timeout(TIMEOUTS_MS[selectedEngine]),
     });
 
     if (!aiResponse.ok) {
