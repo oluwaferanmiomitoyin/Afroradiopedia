@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "./lib/auth";
 
 // Hardcoded patterns for African institutional emails — auto-approved on match
 export const OFFICIAL_PATTERNS = [
@@ -26,6 +27,7 @@ export const add = mutation({
     country: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const clean = args.domain.toLowerCase().replace(/^@/, "");
     const existing = await ctx.db
       .query("trustedDomains")
@@ -44,6 +46,7 @@ export const add = mutation({
 export const remove = mutation({
   args: { id: v.id("trustedDomains") },
   handler: async (ctx, { id }) => {
+    await requireAdmin(ctx);
     await ctx.db.delete(id);
   },
 });

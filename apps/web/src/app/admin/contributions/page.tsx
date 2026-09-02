@@ -1,10 +1,12 @@
 "use client";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
+import { SCAN_CATEGORIES, REGION_LABELS, type ScanType, type BodyRegion } from "@/lib/utils";
 
 export default function ContributionsPage() {
-  const pending = useQuery(api.cases.getPendingReview);
+  const { isAuthenticated } = useConvexAuth();
+  const pending = useQuery(api.cases.getPendingReview, isAuthenticated ? {} : "skip");
   const approveCase = useMutation(api.cases.approveCase);
   const rejectCase = useMutation(api.cases.rejectCase);
 
@@ -64,9 +66,17 @@ export default function ContributionsPage() {
                 className="w-20 h-20 rounded-lg object-cover bg-slate-800 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-xs font-medium text-teal-400 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded">
+                    {SCAN_CATEGORIES[c.scanType as ScanType]}
+                  </span>
                   <span className="text-xs font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">
                     {c.scanType.replace(/_/g, " ")}
                   </span>
+                  {c.region && (
+                    <span className="text-xs font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">
+                      {REGION_LABELS[c.region as BodyRegion]}
+                    </span>
+                  )}
                   <span className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
                     pending review
                   </span>

@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
-
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim());
 
 const navItems = [
   {
@@ -32,10 +32,16 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
+  const convexUser = useQuery(
+    api.users.getByEmail,
+    session?.user?.email ? { email: session.user.email } : "skip"
+  );
 
-  const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  // UX-level gate only — every admin Convex function enforces this for real
+  // server-side via requireAdmin (convex/lib/auth.ts).
+  const isAdmin = convexUser?.role === "admin";
 
-  if (status === "loading") {
+  if (status === "loading" || (session && convexUser === undefined)) {
     return (
       <div className="min-h-screen bg-[#060d17] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-white/10 border-t-teal-400 rounded-full animate-spin" />

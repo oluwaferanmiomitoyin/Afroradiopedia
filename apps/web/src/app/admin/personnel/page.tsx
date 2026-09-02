@@ -1,13 +1,14 @@
 "use client";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
 
 type Tab = "pending" | "auto_approved" | "approved" | "rejected" | "doctors";
 
 export default function PersonnelPage() {
-  const applications = useQuery(api.doctorApplications.list);
-  const doctors = useQuery(api.admin.allDoctors);
+  const { isAuthenticated } = useConvexAuth();
+  const applications = useQuery(api.doctorApplications.list, isAuthenticated ? {} : "skip");
+  const doctors = useQuery(api.admin.allDoctors, isAuthenticated ? {} : "skip");
   const approve = useMutation(api.doctorApplications.approve);
   const reject = useMutation(api.doctorApplications.reject);
 
@@ -139,6 +140,18 @@ export default function PersonnelPage() {
                 <p className="text-xs text-slate-500 mb-1">Why they want to contribute</p>
                 <p className="text-sm text-slate-300">{app.note}</p>
               </div>
+
+              {app.licenseUrl ? (
+                <a href={app.licenseUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-teal-400 hover:text-teal-300 transition-colors">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  View uploaded license →
+                </a>
+              ) : (
+                <p className="text-xs text-amber-400">No license document on file.</p>
+              )}
 
               {app.rejectionReason && (
                 <p className="text-xs text-red-400 border border-red-500/20 bg-red-500/5 px-3 py-2 rounded-lg">

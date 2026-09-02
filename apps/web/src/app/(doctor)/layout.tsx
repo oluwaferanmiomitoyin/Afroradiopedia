@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { ConvexUserSync } from "@/components/ConvexUserSync";
 import { DoctorSidebarNav } from "@/components/DoctorSidebarNav";
 import { DoctorVerificationGate } from "@/components/DoctorVerificationGate";
 
@@ -37,7 +36,6 @@ export default async function DoctorLayout({ children }: { children: React.React
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
-        <ConvexUserSync />
         <div className="max-w-4xl mx-auto px-5 sm:px-8 py-10 pt-20 md:pt-10">
           <DoctorVerificationGate>
             {children}

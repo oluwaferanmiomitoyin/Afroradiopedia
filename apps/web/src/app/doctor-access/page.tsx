@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useState } from "react";
 import Link from "next/link";
+import { validateLicenseFile } from "@/lib/image";
 
 const SPECIALTIES = [
   "Radiology", "Pulmonology", "Cardiology", "Orthopedics",
@@ -90,7 +91,9 @@ function ApplicationForm({ email, name }: { email: string; name: string }) {
   const [hospital, setHospital] = useState("");
   const [country, setCountry] = useState("");
   const [note, setNote] = useState("");
-  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseError, setLicenseError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "uploading" | "submitting" | "done" | "error">("idle");
 
   // Already applied
   if (existing === undefined) {
@@ -160,11 +163,48 @@ function ApplicationForm({ email, name }: { email: string; name: string }) {
     );
   }
 
+  function handleLicenseChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateLicenseFile(file);
+    if (err) { setLicenseError(err); return; }
+    setLicenseError(null);
+    setLicenseFile(file);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus("submitting");
+    if (!licenseFile) return;
+    setStatus("uploading");
+
     try {
-      await apply({ email, name, specialty, hospital, country, note });
+      const sigRes = await fetch("/api/upload-signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: "afroradiopedia/licenses" }),
+      });
+      const { timestamp, signature, cloudName, apiKey, folder } = await sigRes.json();
+
+      const formData = new FormData();
+      formData.append("file", licenseFile);
+      formData.append("timestamp", timestamp);
+      formData.append("signature", signature);
+      formData.append("api_key", apiKey);
+      formData.append("folder", folder);
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+        { method: "POST", body: formData }
+      );
+      const uploadData = await uploadRes.json();
+      if (!uploadData.secure_url) throw new Error("Upload failed");
+
+      setStatus("submitting");
+      await apply({
+        email, name, specialty, hospital, country, note,
+        licenseUrl: uploadData.secure_url,
+        licensePublicId: uploadData.public_id,
+      });
       setStatus("done");
     } catch {
       setStatus("error");
@@ -213,11 +253,28 @@ function ApplicationForm({ email, name }: { email: string; name: string }) {
           className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none" />
       </div>
 
+      <div>
+        <label className="block text-xs font-medium text-slate-400 mb-1.5">Medical license / practicing certificate *</label>
+        {licenseFile ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/8">
+            <span className="text-sm text-slate-300 truncate flex-1">{licenseFile.name}</span>
+            <button type="button" onClick={() => setLicenseFile(null)} className="text-slate-500 hover:text-white text-xs shrink-0">✕</button>
+          </div>
+        ) : (
+          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-teal-500 transition-colors">
+            <span className="text-xs text-slate-400">Click to upload (JPEG, PNG, or PDF)</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleLicenseChange} required />
+          </label>
+        )}
+        {licenseError && <p className="text-xs text-red-400 mt-1">{licenseError}</p>}
+        <p className="mt-1.5 text-xs text-slate-500">We verify this manually before approving your account.</p>
+      </div>
+
       {status === "error" && <p className="text-xs text-red-400">Something went wrong. Please try again.</p>}
 
-      <button type="submit" disabled={status === "submitting"}
+      <button type="submit" disabled={!licenseFile || status === "uploading" || status === "submitting"}
         className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-semibold rounded-lg transition-colors text-sm">
-        {status === "submitting" ? "Submitting…" : "Submit application"}
+        {status === "uploading" ? "Uploading license…" : status === "submitting" ? "Submitting…" : "Submit application"}
       </button>
 
       <p className="text-center text-xs text-slate-600">

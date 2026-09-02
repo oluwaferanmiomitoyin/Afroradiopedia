@@ -1,11 +1,12 @@
 "use client";
-import { useQuery } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { useQuery, useConvexAuth } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import Link from "next/link";
 
 export default function AdminOverviewPage() {
-  const stats = useQuery(api.admin.overviewStats);
-  const activity = useQuery(api.admin.recentActivity);
+  const { isAuthenticated } = useConvexAuth();
+  const stats = useQuery(api.admin.overviewStats, isAuthenticated ? {} : "skip");
+  const activity = useQuery(api.admin.recentActivity, isAuthenticated ? {} : "skip");
 
   return (
     <div className="space-y-8">

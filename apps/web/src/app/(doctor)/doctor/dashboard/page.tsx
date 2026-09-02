@@ -1,19 +1,13 @@
 "use client";
 import { useSession } from "next-auth/react";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import Link from "next/link";
 
 export default function DoctorDashboard() {
   const { data: session } = useSession();
-  const convexUser = useQuery(
-    api.users.getByEmail,
-    session?.user?.email ? { email: session.user.email } : "skip"
-  );
-  const cases = useQuery(
-    api.cases.getByDoctor,
-    convexUser?._id ? { doctorId: convexUser._id } : "skip"
-  );
+  const { isAuthenticated } = useConvexAuth();
+  const cases = useQuery(api.cases.getByDoctor, isAuthenticated ? {} : "skip");
 
   const caseCount = cases?.length ?? 0;
   const recentCases = cases?.slice(0, 3) ?? [];

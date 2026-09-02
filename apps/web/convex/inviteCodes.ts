@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin, requireIdentity } from "./lib/auth";
 
 // Validate a code — called before showing the register form
 export const validate = query({
@@ -21,6 +22,11 @@ export const validate = query({
 export const claim = mutation({
   args: { code: v.string(), email: v.string() },
   handler: async (ctx, { code, email }) => {
+    const identity = await requireIdentity(ctx);
+    if (identity.email!.toLowerCase() !== email.toLowerCase()) {
+      throw new Error("Unauthorized: email must match the signed-in account");
+    }
+
     const invite = await ctx.db
       .query("inviteCodes")
       .withIndex("by_code", (q) => q.eq("code", code))
@@ -41,6 +47,7 @@ export const generate = mutation({
     expiresInDays: v.optional(v.number()),
   },
   handler: async (ctx, { email, expiresInDays }) => {
+    await requireAdmin(ctx);
     const part = () => Math.random().toString(36).substring(2, 6).toUpperCase();
     const code = `AFRO-${part()}-${part()}`;
 
@@ -61,6 +68,7 @@ export const generate = mutation({
 // List all codes — admin view
 export const list = query({
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     return await ctx.db.query("inviteCodes").order("desc").collect();
   },
 });
@@ -69,6 +77,7 @@ export const list = query({
 export const revoke = mutation({
   args: { id: v.id("inviteCodes") },
   handler: async (ctx, { id }) => {
+    await requireAdmin(ctx);
     await ctx.db.patch(id, { isUsed: true });
   },
 });

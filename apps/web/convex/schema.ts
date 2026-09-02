@@ -5,7 +5,7 @@ export default defineSchema({
   users: defineTable({
     name: v.string(),
     email: v.string(),
-    role: v.union(v.literal("doctor"), v.literal("patient")),
+    role: v.union(v.literal("doctor"), v.literal("patient"), v.literal("admin")),
     specialty: v.optional(v.string()),
     country: v.optional(v.string()),
     hospital: v.optional(v.string()),
@@ -27,6 +27,17 @@ export default defineSchema({
       v.literal("other")
     ),
     bodyPart: v.string(),
+    region: v.optional(
+      v.union(
+        v.literal("head"),
+        v.literal("neck"),
+        v.literal("chest"),
+        v.literal("upper_limb"),
+        v.literal("lower_limb"),
+        v.literal("abdomen"),
+        v.literal("spine")
+      )
+    ),
     condition: v.string(),
     diagnosis: v.string(),
     clinicalNotes: v.string(),
@@ -82,6 +93,8 @@ export default defineSchema({
     hospital: v.string(),
     country: v.string(),
     note: v.string(),
+    licenseUrl: v.optional(v.string()),
+    licensePublicId: v.optional(v.string()),
     status: v.union(
       v.literal("pending"),
       v.literal("approved"),

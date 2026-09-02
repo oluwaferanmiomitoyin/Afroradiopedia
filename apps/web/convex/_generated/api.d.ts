@@ -13,6 +13,7 @@ import type * as analyses from "../analyses.js";
 import type * as cases from "../cases.js";
 import type * as doctorApplications from "../doctorApplications.js";
 import type * as inviteCodes from "../inviteCodes.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as trustedDomains from "../trustedDomains.js";
 import type * as users from "../users.js";
 
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   cases: typeof cases;
   doctorApplications: typeof doctorApplications;
   inviteCodes: typeof inviteCodes;
+  "lib/auth": typeof lib_auth;
   trustedDomains: typeof trustedDomains;
   users: typeof users;
 }>;

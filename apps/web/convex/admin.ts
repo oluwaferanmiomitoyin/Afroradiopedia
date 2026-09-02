@@ -1,8 +1,10 @@
 import { query } from "./_generated/server";
+import { requireAdmin } from "./lib/auth";
 
 // Overview stats for the admin dashboard
 export const overviewStats = query({
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     const [users, cases, analyses, applications] = await Promise.all([
       ctx.db.query("users").collect(),
       ctx.db.query("cases").collect(),
@@ -33,6 +35,7 @@ export const overviewStats = query({
 // Recent platform activity
 export const recentActivity = query({
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     const [recentCases, recentAnalyses, recentApps] = await Promise.all([
       ctx.db.query("cases").order("desc").take(5),
       ctx.db.query("analyses").order("desc").take(5),
@@ -46,6 +49,7 @@ export const recentActivity = query({
 // All doctors with their stats
 export const allDoctors = query({
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     const doctors = await ctx.db
       .query("users")
       .filter((q) => q.eq(q.field("role"), "doctor"))

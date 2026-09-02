@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { OFFICIAL_PATTERNS } from "./trustedDomains";
+import { requireAdmin, requireIdentity } from "./lib/auth";
 
 function checkDomainTrust(domain: string): string | null {
   for (const pattern of OFFICIAL_PATTERNS) {
@@ -17,8 +18,15 @@ export const apply = mutation({
     hospital: v.string(),
     country: v.string(),
     note: v.string(),
+    licenseUrl: v.string(),
+    licensePublicId: v.string(),
   },
   handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    if (identity.email!.toLowerCase() !== args.email.toLowerCase()) {
+      throw new Error("Unauthorized: email must match the signed-in account");
+    }
+
     const domain = args.email.split("@")[1]?.toLowerCase() ?? "";
 
     // Check hardcoded official patterns
@@ -91,6 +99,7 @@ export const getByEmail = query({
 
 export const list = query({
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     return await ctx.db.query("doctorApplications").order("desc").collect();
   },
 });
@@ -98,6 +107,7 @@ export const list = query({
 export const approve = mutation({
   args: { id: v.id("doctorApplications") },
   handler: async (ctx, { id }) => {
+    await requireAdmin(ctx);
     const application = await ctx.db.get(id);
     if (!application) throw new Error("Application not found");
 
@@ -114,6 +124,7 @@ export const approve = mutation({
 export const reject = mutation({
   args: { id: v.id("doctorApplications"), reason: v.optional(v.string()) },
   handler: async (ctx, { id, reason }) => {
+    await requireAdmin(ctx);
     const application = await ctx.db.get(id);
     await ctx.db.patch(id, {
       status: "rejected",
